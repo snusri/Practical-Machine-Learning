@@ -1,0 +1,169 @@
+---
+title: "Practical Machine Learning"
+author: "Saeed Nusri"
+date: "4/08/2017"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+##Executive Summary
+
+This reports presents Practical Machine Learning Project that involves applying various machine learning algorithms to Human Activity Recognition dataset to predict the quality of excercise based on the acquired raw data by activity tracker. More precisely, the Weight Lifting Exercises Dataset has been used to predict the movement of athlete and how likely they mistake during repetition of certain barbell weight lifting movement. 
+
+##Introduction
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+##Data Acquisition & R packages
+
+The project uses the following packages for datacleaning, exploration and machine learning.
+
+```{r library packages, echo=T, eval=FALSE}
+
+library(dplyr)
+library(caret)
+library(rpart)
+library(rattle)
+library(randomForest)
+
+```
+
+```{r library package execute, echo=FALSE, cache=FALSE, results=FALSE, warning=FALSE, comment=FALSE, warning=FALSE, include=FALSE}
+
+library(dplyr)
+library(caret)
+library(rpart)
+library(rattle)
+library(randomForest)
+
+```
+The Weight Lifting Exercises datasets is acquired from the groupware website and stored as the training and testing dataset in the working directory under its respective names
+
+```{r pressure, echo = T}
+
+#Training dataset
+if(!file.exists("training")){
+download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv", 
+              destfile = "training", method = "curl")
+}
+
+training <- read.csv("training", header = TRUE)
+
+#Testing dataset
+if(!file.exists("testing")){
+download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv", 
+              destfile = "testing", method = "curl")
+}
+
+testing <- read.csv("testing", header = TRUE)
+```
+
+Once the data is obtained the training dataset is used to do exploratory data analysis
+
+##Data Cleaning and Exploratory Data Analysis
+
+It is important to clean the data and find the covariates that would provide us with the prediction model. For simplicity, same tranformations are carried out on both, training and testing datasets.
+
+``` {r colnames}
+
+#Name of all the variables
+colnames(training)
+
+```
+
+As seen many of variables are unncessary for the prediction algorithm. These include, for instance, the average values, standard deviation and variance - values with least amount of variance are removed. Also, zero value columns are not required for the algorithm. The following RScript removes redundant values
+
+``` {r removing redundancy}
+
+near_zero_variance <- nearZeroVar(training)
+
+training <- training[,-near_zero_variance]
+
+training <- training[, colSums(is.na(training))==0]
+
+```
+
+Even the first 6 columns are removed from the dataset
+
+```{r removing firstsix}
+
+training <- training[,-c(1,2,3,4,5,6)]
+
+
+dim(training)
+```
+
+With this, the training dataset is ready to train the model. At first, the raw dataset contained 19622 observation, with 160 variables. Many variables contained largely missing data (usually with only one row of data), so these were removed from the dataset. In addition, variables not concerning the movement sensors were also removed. This resulted in a dataset of  variables
+
+##Training
+
+The following section covers various models used to fit the dataset. But first the training dataset is further partitioned into training and testing datasets because actual testing dataset has only 20 observations.
+
+###Partioning Data - Cross Validation (Holdout Method)
+
+The training dataset is partitioned into traning and testing sets for cross validation of the various models. Other cross validation methods like K fold CV and leave one out CV but hold out method retains simplicity for the purpose of this project while preventing overfitting.
+
+We split the cleaned training set trainData into a training set (train, 70%) for prediction and a validation set (valid 30%) to compute the out-of-sample errors.
+
+``` {r datapartitioning}
+
+inTrain <- createDataPartition(training$classe, p = 0.7, list = FALSE)
+
+trainData <- training[inTrain,]
+
+testData <- training[-inTrain,]
+
+```
+
+We use classification trees and random forests to predict the outcome.
+
+###Decision Tree
+
+``` {r decisionTree}
+
+set.seed(1234)
+modelFitDT <- train(classe~., data = trainData, method = "rpart")
+fancyRpartPlot(modelFitDT$finalModel)
+
+
+predictDT <- predict(modelFitDT, testData)
+
+confusionMatrix(table(predictDT, testData$classe))
+```
+
+From the confusion matrix, the accuracy rate is 0.5, and so the out-of-sample error rate is 0.5. Using classification tree does not predict the outcome classe very well hence cannot be used as a prediction model.
+
+###Random Forest
+
+``` {r randomF}
+
+modelFitRF <- randomForest(classe~., data = trainData)
+
+predictRF <- predict(modelFitRF, testData, type = "class")
+
+confusionMatrix(predictRF, testData$classe)
+
+```
+
+Random Forest (RF) method yielded a very high accuracy and out of sample error of (100-99.51) 0.49%. This may be due to the fact that many predictors are highly correlated. Random forests chooses a subset of predictors at each split and decorrelate the trees. This leads to high accuracy, although this algorithm is sometimes difficult to interpret and computationally inefficient.
+
+##Testing Prediction Model on Testing Dataset
+
+
+```{r final}
+
+
+pred <- predict(modelFitRF, testing)
+
+print(pred)
+
+```
+
+With high accuracy, the model accurately predicted all of the 20 test subjects.
+
+##Conclusion
+
+This reports includes the machine learning algorithm implemented on activity tracker dataset to predict the dumbell movements of athelte. The best predictive model was found out to be through Random Forest with 99.51% accuracy in predicting the results.
+
+[^1]:Please note that the data used in this analysis is provided by http://groupware.les.inf.puc-rio.br/har .
